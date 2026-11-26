@@ -4,7 +4,7 @@ import { TOOLS_CONFIG, getToolBySlug, type ToolSlug } from "@/lib/tools-config";
 export const SITE_NAME = "PDFAlat";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-  "https://pdfalat.vercel.app";
+  "https://pdf-helpers.vercel.app";
 
 interface ToolSeoDetail {
   seoTitle: string;
