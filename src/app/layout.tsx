@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { PwaRegister } from "@/components/pwa/pwa-register";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
@@ -26,6 +27,11 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: SITE_NAME,
+  },
   title: {
     default: `${SITE_NAME} — Alat PDF Cepat Tanpa Login`,
     template: `%s | ${SITE_NAME}`,
@@ -87,6 +93,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
         <TooltipProvider>
+          <PwaRegister />
           {children}
           <Toaster position="bottom-right" theme="light" />
         </TooltipProvider>

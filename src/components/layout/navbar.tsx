@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, FileStack } from "lucide-react";
+import { InstallPwaButton } from "@/components/pwa/install-pwa-button";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,7 +44,9 @@ export function Navbar() {
           ) : null}
         </div>
 
-        <DropdownMenu>
+        <div className="flex items-center gap-2">
+          <InstallPwaButton />
+          <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button variant="outline" size="sm" className="gap-1.5" />
@@ -82,6 +85,7 @@ export function Navbar() {
             })}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );
