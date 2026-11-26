@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
 import { ToolPageShell } from "@/components/shared/tool-page-shell";
 import { ImageToPdfTool } from "@/components/tools/image-to-pdf-tool";
-import { getToolBySlug } from "@/lib/tools-config";
+import { buildToolMetadata } from "@/lib/seo";
 
-const tool = getToolBySlug("foto-ke-pdf");
-
-export const metadata: Metadata = {
-  title: tool.title,
-  description: tool.description,
-};
+export const metadata: Metadata = buildToolMetadata("foto-ke-pdf");
 
 export default function FotoKePdfPage() {
   return (
-    <ToolPageShell>
+    <ToolPageShell toolSlug="foto-ke-pdf">
       <ImageToPdfTool />
     </ToolPageShell>
   );

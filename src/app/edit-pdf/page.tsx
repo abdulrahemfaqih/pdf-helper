@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
 import { ToolPageShell } from "@/components/shared/tool-page-shell";
 import { EditPdfTool } from "@/components/tools/edit-pdf-tool";
-import { getToolBySlug } from "@/lib/tools-config";
+import { buildToolMetadata } from "@/lib/seo";
 
-const tool = getToolBySlug("edit-pdf");
-
-export const metadata: Metadata = {
-  title: tool.title,
-  description: tool.description,
-};
+export const metadata: Metadata = buildToolMetadata("edit-pdf");
 
 export default function EditPdfPage() {
   return (
-    <ToolPageShell>
+    <ToolPageShell toolSlug="edit-pdf">
       <EditPdfTool />
     </ToolPageShell>
   );

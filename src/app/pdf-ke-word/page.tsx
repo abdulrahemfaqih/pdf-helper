@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
 import { ToolPageShell } from "@/components/shared/tool-page-shell";
 import { PdfToWordTool } from "@/components/tools/pdf-to-word-tool";
-import { getToolBySlug } from "@/lib/tools-config";
+import { buildToolMetadata } from "@/lib/seo";
 
-const tool = getToolBySlug("pdf-ke-word");
-
-export const metadata: Metadata = {
-  title: tool.title,
-  description: tool.description,
-};
+export const metadata: Metadata = buildToolMetadata("pdf-ke-word");
 
 export default function PdfKeWordPage() {
   return (
-    <ToolPageShell>
+    <ToolPageShell toolSlug="pdf-ke-word">
       <PdfToWordTool />
     </ToolPageShell>
   );

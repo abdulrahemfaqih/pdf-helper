@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
+import { buildHomeJsonLd } from "@/lib/seo";
 import { TOOLS_CONFIG } from "@/lib/tools-config";
 
 export default function HomePage() {
+  const jsonLd = buildHomeJsonLd();
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Navbar />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center px-4 py-8 sm:px-6 sm:py-10">

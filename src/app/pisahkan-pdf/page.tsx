@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
 import { ToolPageShell } from "@/components/shared/tool-page-shell";
 import { SplitPdfTool } from "@/components/tools/split-pdf-tool";
-import { getToolBySlug } from "@/lib/tools-config";
+import { buildToolMetadata } from "@/lib/seo";
 
-const tool = getToolBySlug("pisahkan-pdf");
-
-export const metadata: Metadata = {
-  title: tool.title,
-  description: tool.description,
-};
+export const metadata: Metadata = buildToolMetadata("pisahkan-pdf");
 
 export default function PisahkanPdfPage() {
   return (
-    <ToolPageShell>
+    <ToolPageShell toolSlug="pisahkan-pdf">
       <SplitPdfTool />
     </ToolPageShell>
   );
