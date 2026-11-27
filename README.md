@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PDFAlat
 
-## Getting Started
+Aplikasi web utilitas PDF gratis, tanpa login, dan responsif (**PWA**) berbasis **Next.js 16 (App Router, Turbopack)**, **Tailwind CSS v4**, dan **shadcn/ui**.
 
-First, run the development server:
+Live production: [https://pdf-helpers.vercel.app](https://pdf-helpers.vercel.app)
 
+## Fitur Utama (10 Alat)
+
+- **Client-Side di Browser** (`pdf-lib`, `pdfjs-dist`, `jszip`, `mammoth`, `jspdf`, `html2canvas`):
+  1. **Gabungkan PDF** (`/gabungkan-pdf`)
+  2. **Pisahkan PDF** (`/pisahkan-pdf`)
+  3. **Kompres PDF** (`/kompres-pdf`)
+  4. **Word ke PDF** (`/word-ke-pdf`)
+  5. **Edit PDF** (`/edit-pdf`)
+  6. **PDF ke Foto** (`/pdf-ke-foto`)
+  7. **Foto ke PDF** (`/foto-ke-pdf`)
+  8. **Putar PDF** (`/putar-pdf`)
+  9. **Atur PDF** (`/atur-pdf`)
+- **Microservice Python `pdf2docx`** (`pdf-to-word-service/`, di-deploy ke **Koyeb**):
+  10. **PDF ke Word** (`/pdf-ke-word`) — menjaga gambar, garis pemisah, layout kolom, bullet list, font, dan hyperlink (maksimal 10 MB, file sementara di `/tmp` langsung dihapus setelah selesai).
+
+## Menjalankan Secara Lokal
+
+### 1. Frontend Next.js
 ```bash
+npm install
+# Tambahkan di .env.local untuk fitur PDF ke Word lokal:
+# NEXT_PUBLIC_PDF_TO_WORD_API_URL=http://localhost:8000
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Microservice PDF ke Word (`pdf-to-word-service/`)
+```bash
+cd pdf-to-word-service
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Vercel**: `NEXT_PUBLIC_PDF_TO_WORD_API_URL` (URL publik microservice Koyeb, misal `https://nama-service.koyeb.app`)
+- **Koyeb**: `ALLOWED_ORIGINS` (origin frontend yang diizinkan, misal `https://pdf-helpers.vercel.app`)
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Panduan arsitektur, spesifikasi UI, dan langkah deploy lengkap tersedia di folder [docs/](file:///d:/PROJECT/pdf-helper/docs).

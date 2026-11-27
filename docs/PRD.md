@@ -45,10 +45,9 @@ AI Agent wajib menggunakan versi stabil terbaru berikut:
   - *Level Ringan*: Optimasi struktur objek (`pdf-lib` dengan `useObjectStreams: true`) tanpa merasterisasi teks.
   - *Level Rekomendasi & Ekstrem*: Rasterisasi halaman terukur & kompresi JPEG via `pdfjs-dist` + `OffscreenCanvas` / `canvas.toBlob('image/jpeg', quality)` dengan variasi DPI dan kualitas. UI wajib menampilkan catatan transparan bahwa level Rekomendasi/Ekstrem merasterisasi halaman demi pengurangan ukuran maksimal.
 - **Konversi Word <-> PDF**:
-  - *Tier 1 (Default Client-Side / Zero-Backend)*:
-    - **PDF ke Word**: Ekstraksi teks & struktur paragraf menggunakan `pdfjs-dist` lalu pembentukan file `.docx` menggunakan library `docx`. Jika PDF berupa hasil scan tanpa lapisan teks, sistem memberi peringatan jelas bahwa dokumen berbasis gambar tidak dapat diekstrak (tanpa OCR).
-    - **Word ke PDF**: Parsing `.docx` ke HTML terstruktur menggunakan `mammoth` di dalam `iframe` terisolasi (dengan stylesheet warna hex eksplisit agar aman dari token `oklch()` Tailwind CSS v4), lalu dirender ke PDF multi-halaman via `jsPDF` dengan pemecahan halaman berbasis blok DOM agar teks tidak terpotong di tengah baris.
-  - *Tier 2 (Arsitektur Siap Ekstensi)*: Abstraksi melalui interface `ConversionAdapter` sehingga di masa depan dapat dihubungkan ke API Route / Docker LibreOffice (`soffice --headless`) tanpa mengubah kode UI.
+  - *Word ke PDF (Client-Side / Zero-Backend)*: Parsing `.docx` ke HTML terstruktur menggunakan `mammoth` di dalam `iframe` terisolasi (dengan stylesheet warna hex eksplisit agar aman dari token `oklch()` Tailwind CSS v4), lalu dirender ke PDF multi-halaman via `jsPDF` dengan pemecahan halaman berbasis blok DOM agar teks tidak terpotong di tengah baris.
+  - *PDF ke Word (Microservice `pdf2docx` di Koyeb)*: Menggunakan microservice Python (`FastAPI` + `pdf2docx`) terpisah yang di-deploy ke **Koyeb (Free Tier: 512 MB RAM, 0.1 vCPU)** agar rekonstruksi tata letak kompleks (gambar, garis pemisah, kolom kiri-kanan, bullet list, font, bold/italic, dan hyperlink) akurat. Batas ukuran file maksimal **10 MB** dengan pemrosesan berurutan (`asyncio.Semaphore(1)`) dan **100% tanpa penyimpanan permanen** (file sementara di `/tmp` langsung dihapus via `BackgroundTask` setelah respons terkirim).
+  - *Abstraksi*: Melalui interface `ConversionAdapter` sehingga implementasi mudah diganti/diperluas tanpa mengubah kode UI.
 
 ---
 
@@ -87,11 +86,11 @@ Setiap fitur memiliki rute independen (`/gabungkan-pdf`, `/pisahkan-pdf`, dst.) 
   3. Setelah selesai, tampilkan perbandingan metrik yang jelas per file maupun total: `Ukuran Awal -> Ukuran Akhir (Hemat XX%)`. Jika mengunggah lebih dari 1 file, hasil otomatis dikemas dalam `.zip`.
 
 ### 4.4 PDF ke Word (`/pdf-ke-word`)
-- **Fungsi**: Mengonversi dokumen PDF menjadi file Microsoft Word (`.docx`) yang dapat diedit.
+- **Fungsi**: Mengonversi dokumen PDF menjadi file Microsoft Word (`.docx`) yang dapat diedit dengan mempertahankan tata letak aslinya.
 - **Alur UX**:
-  1. Unggah 1 file PDF.
-  2. Tampilkan info halaman & catatan transparan bahwa PDF berbasis teks (*text-selectable*) akan mempertahankan struktur paragraf dengan baik, sedangkan PDF hasil scan tidak didukung OCR.
-  3. Klik **"Konversi ke Word"** -> jika teks tidak ditemukan tampilkan peringatan jelas; jika tersedia hasilkan dan unduh `.docx`.
+  1. Unggah 1 file PDF (maksimal **10 MB**).
+  2. Tampilkan info halaman, batas 10 MB, dan catatan transparan bahwa file diproses sementara oleh microservice `pdf2docx` di Koyeb dan langsung dihapus dari `/tmp` setelah selesai.
+  3. Klik **"Konversi ke Word"** -> tampilkan status loading (dengan timeout >= 60 detik untuk toleransi *cold start*) -> hasilkan dan unduh `.docx`.
 
 ### 4.5 Word ke PDF (`/word-ke-pdf`)
 - **Fungsi**: Mengonversi file `.docx` menjadi dokumen PDF siap cetak.
@@ -161,7 +160,7 @@ Setiap fitur memiliki rute independen (`/gabungkan-pdf`, `/pisahkan-pdf`, dst.) 
 2. **Memory Management**:
    - Wajib memanggil `URL.revokeObjectURL()` saat file dihapus atau komponen *unmount*.
    - Gunakan *lazy rendering* (`IntersectionObserver`) untuk thumbnail halaman jika PDF memiliki lebih dari 20 halaman agar RAM tetap rendah.
-3. **Code Splitting**: Library berat (`pdf-lib`, `pdfjs-dist`, `jszip`, `mammoth`, `docx`, `jspdf`) wajib di-import secara dinamis (`dynamic import`) hanya pada rute fitur yang membutuhkannya agar *First Load JS* di homepage tetap sangat kecil (< 100 KB gzipped, diverifikasi melalui chunk hasil build).
+3. **Code Splitting**: Library berat (`pdf-lib`, `pdfjs-dist`, `jszip`, `mammoth`, `jspdf`, `html2canvas`) wajib di-import secara dinamis (`dynamic import`) hanya pada rute fitur yang membutuhkannya agar *First Load JS* di homepage tetap sangat kecil (< 100 KB gzipped, diverifikasi melalui chunk hasil build).
 4. **Error Handling**:
    - Validasi ekstensi dan MIME type file sebelum diproses.
    - Tangani PDF terproteksi password secara elegan dengan pesan jelas ("File PDF ini dilindungi kata sandi dan tidak dapat diproses").
