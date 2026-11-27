@@ -211,9 +211,9 @@ export function PdfToWordTool() {
           ) : null}
 
           <p className="rounded-lg border border-border bg-background p-3 leading-relaxed text-muted-foreground">
-            PDF berbasis teks (teks dapat diseleksi) akan mempertahankan urutan
-            paragraf dan judul dengan baik. PDF hasil scan tanpa teks tidak
-            dapat diekstrak secara lokal tanpa OCR.
+            PDF berbasis teks (teks dapat diseleksi) akan mempertahankan tata
+            letak kolom, gambar, garis pemisah, hyperlink, dan daftar bullet
+            dengan baik. PDF hasil scan gambar tidak didukung tanpa OCR.
           </p>
         </div>
       }
