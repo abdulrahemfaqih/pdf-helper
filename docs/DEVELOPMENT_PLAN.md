@@ -61,11 +61,6 @@ src/
 │   │   ├── edit.ts
 │   │   └── conversion-adapter.ts  # Interface & implementasi PDF <-> Word
 │   └── utils.ts                   # cn() helper dari shadcn/ui
-└── pdf-to-word-service/           # Microservice Python FastAPI + pdf2docx (Koyeb)
-    ├── main.py
-    ├── requirements.txt
-    ├── Dockerfile
-    └── .dockerignore
 ```
 
 ---
@@ -158,12 +153,13 @@ Instal dependensi: `npm install pdf-lib jszip @dnd-kit/core @dnd-kit/sortable @d
 ### Phase 4: Fitur Konversi Dokumen & Editor Interaktif (3 Fitur Kompleks)
 **Tujuan**: Menyelesaikan fitur dengan interaksi dan parsing paling kompleks.
 
-Instal dependensi: `npm install mammoth jspdf html2canvas` (dengan rendering HTML terisolasi untuk mencegah konflik `oklch()` Tailwind v4).
+Instal dependensi: `npm install docx mammoth jspdf html2canvas` (dengan rendering HTML terisolasi untuk mencegah konflik `oklch()` Tailwind v4).
 
 1. **PDF ke Word** (`/pdf-ke-word`):
-   - Hubungkan frontend melalui `ConversionAdapter` ke microservice `pdf-to-word-service/` (`FastAPI` + `pdf2docx`) via `NEXT_PUBLIC_PDF_TO_WORD_API_URL`.
-   - Validasi ukuran file maksimal **10 MB** di client & server (`HTTP 413`), timeout request `>= 60` detik, dan tampilkan error jaringan/cold start secara jelas.
-   - Pada microservice, gunakan `asyncio.Semaphore(1)`, simpan sementara di `/tmp` dengan UUID, proses di `run_in_threadpool`, hapus langsung via `BackgroundTasks`, dan panggil `gc.collect()` agar aman di Koyeb Free Tier (512 MB RAM).
+   - Ekstrak teks dan posisi baris/paragraf dari setiap halaman menggunakan `pdfjs-dist`.
+   - Jika tidak ada teks yang dapat diekstrak (PDF hasil scan), tampilkan peringatan jelas daripada mengunduh `.docx` kosong.
+   - Susun dokumen `.docx` yang bersih menggunakan `docx`.
+   - Buat abstraksi `ConversionAdapter` agar mudah diganti ke engine server jika suatu saat dideploy dengan Docker/LibreOffice.
 2. **Word ke PDF** (`/word-ke-pdf`):
    - Mendukung 1 atau beberapa `.docx` (otomatis `.zip` jika > 1 file).
    - Parse `.docx` menggunakan `mammoth` ke HTML terstruktur di dalam `iframe` terisolasi dengan CSS warna hex eksplisit (hindari pewarisan token `oklch()` Tailwind v4 yang membuat `html2canvas` gagal).
@@ -201,33 +197,3 @@ Instal dependensi: `npm install mammoth jspdf html2canvas` (dengan rendering HTM
 - **Jangan membuat fitur mock/palsu**: Semua 10 alat harus benar-benar memproses file nyata dan menghasilkan file unduhan yang valid.
 - **Bahasa Antarmuka**: 100% Bahasa Indonesia yang natural, ringkas, dan profesional (contoh: gunakan *"Gabungkan PDF"*, *"Unduh"*, *"Pilih File"*, bukan terjemahan kaku).
 - **Kebersihan Kode**: Hindari `any` di TypeScript; pisahkan logika pemrosesan file di `src/lib/pdf/` dari komponen UI di `src/components/tools/`.
-
----
-
-## 4. Panduan Microservice `pdf-to-word-service` (Lokal & Deploy Koyeb)
-
-### 4.1 Menjalankan Secara Lokal
-```bash
-cd pdf-to-word-service
-python -m venv .venv
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-# macOS/Linux: source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
-```
-Uji health check di `http://localhost:8000/health` (`{"status": "ok"}`).
-
-### 4.2 Daftar Environment Variables
-| Platform | Nama Variabel | Contoh Nilai | Keterangan |
-| :--- | :--- | :--- | :--- |
-| **Vercel** (Frontend) | `NEXT_PUBLIC_PDF_TO_WORD_API_URL` | `https://pdf-to-word-xxx.koyeb.app` | URL publik service Koyeb (tanpa slash akhir) |
-| **Koyeb** (Microservice) | `ALLOWED_ORIGINS` | `https://pdf-helpers.vercel.app` | Daftar origin CORS yang diizinkan (pisahkan koma jika lebih dari 1, default `*`) |
-
-### 4.3 Langkah Deploy ke Koyeb (Dockerfile)
-1. Buka dashboard **Koyeb** -> **Create Service** -> pilih **GitHub** dan hubungkan repositori `abdulrahemfaqih/pdf-helper`.
-2. Pada bagian **Builder**, pilih **Dockerfile**.
-3. Isi **Dockerfile location**: `pdf-to-word-service/Dockerfile` dan **Docker build context** / **Work directory**: `pdf-to-word-service`.
-4. Pilih instance **Free (512 MB RAM, 0.1 vCPU)**.
-5. Tambahkan Environment Variable `ALLOWED_ORIGINS=https://pdf-helpers.vercel.app`.
-6. Pada bagian **Ports & Health checks**, pastikan port `8000` terbuka (HTTP) dan path health check diset ke `/health`.
-7. Deploy service, lalu salin URL publik Koyeb ke Environment Variable `NEXT_PUBLIC_PDF_TO_WORD_API_URL` di project **Vercel** (lalu redeploy Vercel).
