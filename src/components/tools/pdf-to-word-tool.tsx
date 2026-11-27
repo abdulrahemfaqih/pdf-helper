@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { FolderInput, RotateCcw } from "lucide-react";
+import { AlertCircle, FolderInput, RotateCcw } from "lucide-react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { toast } from "sonner";
 import { FileDropzone } from "@/components/shared/file-dropzone";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/file-utils";
 import {
   type ConversionResult,
+  MAX_PDF_TO_WORD_BYTES,
   defaultConversionAdapter,
 } from "@/lib/pdf/conversion-adapter";
 import { disposePdfDocument, loadPdfJsDocument } from "@/lib/pdf/pdfjs-worker";
@@ -30,11 +31,12 @@ export function PdfToWordTool() {
 
   const [file, setFile] = React.useState<File | null>(null);
   const [pdfDoc, setPdfDoc] = React.useState<PDFDocumentProxy | null>(null);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [stage, setStage] = React.useState<
     "upload" | "workspace" | "processing" | "result"
   >("upload");
   const [progress, setProgress] = React.useState(0);
-  const [statusText, setStatusText] = React.useState("Memproses...");
+  const [statusText, setStatusText] = React.useState("Mengonversi dokumen...");
   const [resultData, setResultData] = React.useState<ConversionResult | null>(
     null
   );
@@ -52,6 +54,15 @@ export function PdfToWordTool() {
   }, []);
 
   const loadFile = React.useCallback(async (selectedFile: File) => {
+    setErrorMessage(null);
+
+    if (selectedFile.size > MAX_PDF_TO_WORD_BYTES) {
+      const msg = `Ukuran file (${formatBytes(selectedFile.size)}) melebihi batas maksimal 10 MB.`;
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
     try {
       const nextDoc = await loadPdfJsDocument(selectedFile);
       void disposePdfDocument(pdfDocRef.current);
@@ -60,7 +71,9 @@ export function PdfToWordTool() {
       setResultData(null);
       setStage("workspace");
     } catch (error) {
-      toast.error(getReadablePdfError(error));
+      const msg = getReadablePdfError(error);
+      setErrorMessage(msg);
+      toast.error(msg);
     }
   }, []);
 
@@ -69,6 +82,7 @@ export function PdfToWordTool() {
     void disposePdfDocument(pdfDoc);
     setFile(null);
     setPdfDoc(null);
+    setErrorMessage(null);
     setResultData(null);
     setProgress(0);
     setStage("upload");
@@ -76,12 +90,20 @@ export function PdfToWordTool() {
 
   const handleConvert = async () => {
     if (!file) return;
+    if (file.size > MAX_PDF_TO_WORD_BYTES) {
+      const msg = "Ukuran file melebihi batas maksimal 10 MB.";
+      setErrorMessage(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setErrorMessage(null);
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
     setStage("processing");
-    setProgress(5);
-    setStatusText("Menyiapkan ekstraksi teks PDF...");
+    setProgress(10);
+    setStatusText("Mengonversi dokumen...");
 
     try {
       const result = await defaultConversionAdapter.pdfToWord(
@@ -96,7 +118,9 @@ export function PdfToWordTool() {
       setStage("result");
     } catch (error) {
       if (!controller.signal.aborted) {
-        toast.error(getReadablePdfError(error));
+        const msg = getReadablePdfError(error);
+        setErrorMessage(msg);
+        toast.error(msg);
       }
       setStage("workspace");
     } finally {
@@ -106,14 +130,25 @@ export function PdfToWordTool() {
 
   if (stage === "upload") {
     return (
-      <FileDropzone
-        title={tool.title}
-        description={tool.description}
-        acceptLabel={tool.acceptLabel}
-        acceptExtensions={tool.acceptExtensions}
-        helperNote="Mendukung PDF berbasis teks yang dapat diseleksi. Dokumen hasil scan gambar tidak didukung tanpa OCR."
-        onFilesSelected={(files) => void loadFile(files[0])}
-      />
+      <div className="w-full">
+        <FileDropzone
+          title={tool.title}
+          description={tool.description}
+          acceptLabel={tool.acceptLabel}
+          acceptExtensions={tool.acceptExtensions}
+          helperNote="Maksimal 10 MB. File dikirim sementara ke server konversi untuk menjaga tata letak dan langsung dihapus setelah selesai."
+          onFilesSelected={(files) => void loadFile(files[0])}
+        />
+        {errorMessage ? (
+          <div
+            role="alert"
+            className="mx-auto mt-2 flex max-w-2xl items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-xs text-destructive"
+          >
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        ) : null}
+      </div>
     );
   }
 
@@ -122,6 +157,7 @@ export function PdfToWordTool() {
       <ProcessingState
         statusText={statusText}
         progress={progress}
+        detailText="Mempertahankan gambar, kolom, tabel, font, dan hyperlink. Mohon tunggu hingga 60 detik bila server baru aktif."
         onCancel={() => {
           abortControllerRef.current?.abort();
           setStage("workspace");
@@ -210,10 +246,20 @@ export function PdfToWordTool() {
             </div>
           ) : null}
 
+          {errorMessage ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span className="leading-relaxed">{errorMessage}</span>
+            </div>
+          ) : null}
+
           <p className="rounded-lg border border-border bg-background p-3 leading-relaxed text-muted-foreground">
-            PDF berbasis teks (teks dapat diseleksi) akan mempertahankan tata
-            letak kolom, gambar, garis pemisah, hyperlink, dan daftar bullet
-            dengan baik. PDF hasil scan gambar tidak didukung tanpa OCR.
+            Maksimal ukuran file 10 MB. Dokumen dikirim sementara ke server
+            konversi (`pdf2docx`) agar tata letak, gambar, garis pemisah, dan
+            tautan tetap rapi, lalu langsung dihapus setelah selesai.
           </p>
         </div>
       }

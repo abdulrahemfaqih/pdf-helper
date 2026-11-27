@@ -1,8 +1,10 @@
 "use client";
 
 import { stripFileExtension } from "@/lib/file-utils";
-import { convertPdfToWordDocx } from "@/lib/pdf/pdf-to-word";
 import { createZipBlob, yieldToMainThread } from "@/lib/pdf/zip";
+
+export const MAX_PDF_TO_WORD_BYTES = 10 * 1024 * 1024; // 10 MB
+export const PDF_TO_WORD_TIMEOUT_MS = 90_000; // 90 seconds (handles Koyeb cold start)
 
 export type WordToPdfPageSize = "a4" | "letter";
 export type WordToPdfMargin = "normal" | "narrow" | "wide";
@@ -310,13 +312,162 @@ async function renderHtmlToPaginatedPdfBlob(
   }
 }
 
+function extractFilenameFromDisposition(
+  headerValue: string | null,
+  fallback: string
+): string {
+  if (!headerValue) return fallback;
+  const utf8Match = /filename\*=UTF-8''([^;\n]+)/i.exec(headerValue);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return fallback;
+    }
+  }
+  const plainMatch = /filename="?([^";\n]+)"?/i.exec(headerValue);
+  if (plainMatch?.[1]) {
+    return plainMatch[1].trim();
+  }
+  return fallback;
+}
+
+async function convertPdfViaMicroservice(
+  file: File,
+  onProgress?: (percent: number, status: string) => void,
+  externalSignal?: AbortSignal
+): Promise<ConversionResult> {
+  if (file.size > MAX_PDF_TO_WORD_BYTES) {
+    throw new Error("Ukuran file melebihi batas maksimal 10 MB.");
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_PDF_TO_WORD_API_URL?.trim().replace(
+    /\/+$/,
+    ""
+  );
+  if (!baseUrl) {
+    throw new Error(
+      "Layanan konversi PDF ke Word belum dikonfigurasi (NEXT_PUBLIC_PDF_TO_WORD_API_URL)."
+    );
+  }
+
+  const controller = new AbortController();
+  let timedOut = false;
+
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, PDF_TO_WORD_TIMEOUT_MS);
+
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      window.clearTimeout(timeoutId);
+      throw new Error("Proses dibatalkan oleh pengguna.");
+    }
+    externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
+  onProgress?.(20, "Mengunggah dokumen ke server konversi...");
+
+  // Advance progress gently while waiting for Koyeb cold start / pdf2docx processing
+  let simulatedPct = 28;
+  const progressTimer = window.setInterval(() => {
+    simulatedPct = Math.min(88, simulatedPct + 4);
+    onProgress?.(simulatedPct, "Mengonversi dokumen...");
+  }, 1500);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file, file.name);
+
+    const response = await fetch(`${baseUrl}/convert`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const errJson = (await response.json()) as { detail?: string };
+        if (typeof errJson.detail === "string") {
+          detail = errJson.detail;
+        }
+      } catch {
+        // Ignore non-JSON error body
+      }
+
+      if (response.status === 413) {
+        throw new Error(detail || "Ukuran file melebihi batas maksimal 10 MB.");
+      }
+      if (response.status === 400 || response.status === 422) {
+        throw new Error(
+          detail || "File PDF tidak valid atau dilindungi kata sandi."
+        );
+      }
+      if (
+        response.status === 429 ||
+        response.status === 502 ||
+        response.status === 503 ||
+        response.status === 504
+      ) {
+        throw new Error(
+          "Server konversi sedang sibuk atau memulai ulang (cold start). Silakan coba lagi sebentar."
+        );
+      }
+      throw new Error(
+        detail || `Gagal mengonversi dokumen (kode ${response.status}).`
+      );
+    }
+
+    onProgress?.(94, "Menyiapkan file Word (.docx)...");
+    const blob = await response.blob();
+    if (blob.size === 0) {
+      throw new Error("Hasil konversi kosong.");
+    }
+
+    const fallbackName = `${stripFileExtension(file.name)}.docx`;
+    const filename = extractFilenameFromDisposition(
+      response.headers.get("Content-Disposition"),
+      fallbackName
+    );
+
+    onProgress?.(100, "Selesai");
+    return {
+      blob,
+      filename,
+      fileCount: 1,
+    };
+  } catch (error) {
+    if (externalSignal?.aborted) {
+      throw new Error("Proses dibatalkan oleh pengguna.");
+    }
+    if (timedOut) {
+      throw new Error(
+        "Waktu koneksi habis (timeout 90 detik). Server mungkin sedang cold start atau sibuk, silakan coba lagi."
+      );
+    }
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Tidak dapat terhubung ke server konversi. Periksa koneksi internet atau coba lagi saat server siap."
+      );
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+    window.clearInterval(progressTimer);
+    externalSignal?.removeEventListener("abort", onExternalAbort);
+  }
+}
+
 export class ClientConversionAdapter implements ConversionAdapter {
   async pdfToWord(
     file: File,
     onProgress?: (percent: number, status: string) => void,
     signal?: AbortSignal
   ): Promise<ConversionResult> {
-    return convertPdfToWordDocx(file, onProgress, signal);
+    return convertPdfViaMicroservice(file, onProgress, signal);
   }
 
   async wordToPdf(
